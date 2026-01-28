@@ -17,34 +17,84 @@ let TasksService = class TasksService {
         this.prisma = prisma;
     }
     async create(dto) {
-        // Validate Employee existence
-        const employee = await this.prisma.user.findUnique({ where: { id: dto.assignedTo } });
-        if (!employee || employee.role !== 'EMPLOYEE') {
-            throw new common_1.NotFoundException('Assigned user must be an existing EMPLOYEE');
+        // Validate required fields
+        if (!dto.title || !dto.assignedTo || !dto.customerId) {
+            throw new common_1.BadRequestException('Title, assignedTo, and customerId are required');
         }
-        return this.prisma.task.create({ data: dto });
+        // Verify the employee exists and has EMPLOYEE role
+        const employee = await this.prisma.user.findUnique({
+            where: { id: dto.assignedTo }
+        });
+        if (!employee) {
+            throw new common_1.NotFoundException(`Employee with ID ${dto.assignedTo} not found`);
+        }
+        if (employee.role !== 'EMPLOYEE') {
+            throw new common_1.BadRequestException('Task can only be assigned to an EMPLOYEE role user');
+        }
+        // Verify customer exists
+        const customer = await this.prisma.customer.findUnique({
+            where: { id: dto.customerId }
+        });
+        if (!customer) {
+            throw new common_1.NotFoundException(`Customer with ID ${dto.customerId} not found`);
+        }
+        // Create task with validated references
+        return this.prisma.task.create({
+            data: dto,
+            include: {
+                assignedToUser: { select: { id: true, name: true, email: true } },
+                customer: { select: { id: true, name: true, email: true } }
+            }
+        });
     }
     async findAll(user) {
-        if (user.role === 'ADMIN') {
-            return this.prisma.task.findMany({ include: { assignedToUser: true, customer: true } });
+        if (!user || !user.id) {
+            throw new common_1.BadRequestException('User information is required');
         }
-        // EMPLOYEE: Only show their own tasks
+        // ADMIN can see all tasks, EMPLOYEE sees only their own
+        if (user.role === 'ADMIN') {
+            return this.prisma.task.findMany({
+                include: {
+                    assignedToUser: { select: { id: true, name: true, email: true } },
+                    customer: { select: { id: true, name: true } }
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+        }
+        // Employee: filter by assigned user
         return this.prisma.task.findMany({
             where: { assignedTo: user.id },
-            include: { assignedToUser: true, customer: true },
+            include: {
+                assignedToUser: { select: { id: true, name: true, email: true } },
+                customer: { select: { id: true, name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
         });
     }
     async updateStatus(id, status, user) {
+        if (!id || !status) {
+            throw new common_1.BadRequestException('Task ID and status are required');
+        }
         const task = await this.prisma.task.findUnique({ where: { id } });
-        if (!task)
-            throw new common_1.NotFoundException('Task not found');
-        // SECURITY CHECK: Employee can only update THEIR OWN task
+        if (!task) {
+            throw new common_1.NotFoundException(`Task with ID ${id} not found`);
+        }
+        // Security: EMPLOYEE can only update their own tasks
         if (user.role === 'EMPLOYEE' && task.assignedTo !== user.id) {
-            throw new common_1.ForbiddenException('You are not allowed to update this task');
+            throw new common_1.ForbiddenException('You can only update tasks assigned to you');
+        }
+        // Validate status transition if needed
+        const validStatuses = ['PENDING', 'IN_PROGRESS', 'DONE'];
+        if (!validStatuses.includes(status)) {
+            throw new common_1.BadRequestException(`Invalid status. Allowed: ${validStatuses.join(', ')}`);
         }
         return this.prisma.task.update({
             where: { id },
             data: { status },
+            include: {
+                assignedToUser: { select: { id: true, name: true, email: true } },
+                customer: { select: { id: true, name: true } }
+            }
         });
     }
 };

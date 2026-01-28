@@ -1,4 +1,4 @@
-import { TaskStatus } from '@prisma/client';
+export type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'DONE';
 export declare class CreateTaskDto {
     title: string;
     description?: string;

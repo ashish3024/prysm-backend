@@ -8,33 +8,42 @@ export declare class CustomersService {
         email: string;
         name: string;
         createdAt: Date;
-        updatedAt: Date;
         phone: string;
         company: string | null;
+        updatedAt: Date;
     }>;
     findAll(page?: number, limit?: number): Promise<{
         page: number;
         limit: number;
         totalRecords: number;
         totalPages: number;
+        hasNextPage: boolean;
+        hasPreviousPage: boolean;
         data: {
             id: number;
             email: string;
             name: string;
             createdAt: Date;
-            updatedAt: Date;
             phone: string;
             company: string | null;
+            updatedAt: Date;
         }[];
     }>;
     findOne(id: number): Promise<{
+        tasks: {
+            id: number;
+            createdAt: Date;
+            title: string;
+            status: import(".prisma/client").$Enums.TaskStatus;
+        }[];
+    } & {
         id: number;
         email: string;
         name: string;
         createdAt: Date;
-        updatedAt: Date;
         phone: string;
         company: string | null;
-    } | null>;
+        updatedAt: Date;
+    }>;
 }
 //# sourceMappingURL=customers.service.d.ts.map
